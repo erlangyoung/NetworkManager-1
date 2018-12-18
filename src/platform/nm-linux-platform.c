@@ -4309,7 +4309,7 @@ sysctl_set_async (NMPlatform *platform,
 		return;
 	}
 
-	info = g_slice_alloc0 (sizeof (SysctlAsyncInfo));
+	info = g_slice_new0 (SysctlAsyncInfo);
 	info->platform = g_object_ref (platform);
 	info->pathid = g_strdup (pathid);
 	info->dirfd = dirfd;
@@ -6235,19 +6235,40 @@ nla_put_failure:
 	g_return_val_if_reached (FALSE);
 }
 
+static void
+sriov_idle_cb (gpointer user_data,
+               GCancellable *cancellable)
+{
+	gs_unref_object NMPlatform *platform = NULL;
+	gs_free_error GError *error = NULL;
+	NMPlatformAsyncCallback callback;
+	gpointer callback_data;
+
+	nm_utils_user_data_unpack (user_data, &platform, &callback, &callback_data);
+	g_cancellable_set_error_if_cancelled (cancellable, &error);
+	callback (error, callback_data);
+}
+
 static gboolean
-link_set_sriov_params (NMPlatform *platform,
-                       int ifindex,
-                       guint num_vfs,
-                       NMTernary autoprobe)
+link_set_sriov_params_async (NMPlatform *platform,
+                             int ifindex,
+                             guint num_vfs,
+                             NMTernary autoprobe,
+                             NMPlatformAsyncCallback callback,
+                             gpointer data,
+                             GCancellable *cancellable)
 {
 	nm_auto_pop_netns NMPNetns *netns = NULL;
 	nm_auto_close int dirfd = -1;
 	int current_autoprobe;
-	guint total;
+	guint i, total;
 	gint64 current_num;
 	char ifname[IFNAMSIZ];
-	char buf[64];
+	gpointer packed;
+	const char *values[3];
+
+	g_return_val_if_fail (callback || !data, FALSE);
+	g_return_val_if_fail (cancellable, FALSE);
 
 	if (!nm_platform_netns_push (platform, &netns))
 		return FALSE;
@@ -6285,23 +6306,16 @@ link_set_sriov_params (NMPlatform *platform,
 	                                                                                  "device/sriov_drivers_autoprobe"),
 	                                                        10, 0, 1, -1);
 	if (   current_num == num_vfs
-	    && (autoprobe == NM_TERNARY_DEFAULT || current_autoprobe == autoprobe))
-		return TRUE;
-
-	if (current_num != 0) {
-		/* We need to destroy all other VFs before changing any value */
-		if (!nm_platform_sysctl_set (NM_PLATFORM_GET,
-		                             NMP_SYSCTL_PATHID_NETDIR (dirfd,
-		                                                       ifname,
-		                                                      "device/sriov_numvfs"),
-		                             "0")) {
-			_LOGW ("link: couldn't reset SR-IOV num_vfs: %s", strerror (errno));
-			return FALSE;
+	    && (autoprobe == NM_TERNARY_DEFAULT || current_autoprobe == autoprobe)) {
+		if (callback) {
+			packed = nm_utils_user_data_pack (g_object_ref (platform),
+			                                  callback,
+			                                  data);
+			nm_utils_invoke_on_idle (sriov_idle_cb, packed, cancellable);
 		}
+		return TRUE;
 	}
 
-	if (num_vfs == 0)
-		return TRUE;
 
 	if (   NM_IN_SET (autoprobe, NM_TERNARY_TRUE, NM_TERNARY_FALSE)
 	    && current_autoprobe != autoprobe
@@ -6309,20 +6323,34 @@ link_set_sriov_params (NMPlatform *platform,
 	                                NMP_SYSCTL_PATHID_NETDIR (dirfd,
 	                                                          ifname,
 	                                                          "device/sriov_drivers_autoprobe"),
-	                                nm_sprintf_buf (buf, "%d", (int) autoprobe))) {
+	                                nm_sprintf_bufa (32, "%d", (int) autoprobe))) {
 		_LOGW ("link: couldn't set SR-IOV drivers-autoprobe to %d: %s", (int) autoprobe, strerror (errno));
 		return FALSE;
 	}
 
-	if (!nm_platform_sysctl_set (NM_PLATFORM_GET,
-	                             NMP_SYSCTL_PATHID_NETDIR (dirfd,
-	                                                       ifname,
-	                                                       "device/sriov_numvfs"),
-	                             nm_sprintf_buf (buf, "%u", num_vfs))) {
-		_LOGW ("link: couldn't set SR-IOV num_vfs to %d: %s", num_vfs, strerror (errno));
-		return FALSE;
+	if (current_num == 0 && num_vfs == 0) {
+		if (callback) {
+			packed = nm_utils_user_data_pack (g_object_ref (platform),
+			                                  callback,
+			                                  data);
+			nm_utils_invoke_on_idle (sriov_idle_cb, packed, cancellable);
+		}
+		return TRUE;
 	}
 
+	i = 0;
+	if (current_num != 0)
+		values[i++] = "0\n";
+	if (num_vfs != 0)
+		values[i++] = nm_sprintf_bufa (32, "%u\n", num_vfs);
+	values[i++] = NULL;
+
+	nm_platform_sysctl_set_async (platform,
+	                              NMP_SYSCTL_PATHID_NETDIR (dirfd, ifname, "device/sriov_totalvfs"),
+	                              values,
+	                              callback,
+	                              data,
+	                              cancellable);
 	return TRUE;
 }
 
@@ -8532,7 +8560,7 @@ nm_linux_platform_class_init (NMLinuxPlatformClass *klass)
 	platform_class->link_get_permanent_address = link_get_permanent_address;
 	platform_class->link_set_mtu = link_set_mtu;
 	platform_class->link_set_name = link_set_name;
-	platform_class->link_set_sriov_params = link_set_sriov_params;
+	platform_class->link_set_sriov_params_async = link_set_sriov_params_async;
 	platform_class->link_set_sriov_vfs = link_set_sriov_vfs;
 
 	platform_class->link_get_physical_port_id = link_get_physical_port_id;
