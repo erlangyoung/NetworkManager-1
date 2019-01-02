@@ -754,6 +754,8 @@ typedef enum {
 	NM_PLATFORM_KERNEL_SUPPORT_RTA_PREF                         = (1LL <<  2),
 } NMPlatformKernelSupportFlags;
 
+typedef void (*NMPlatformAsyncCallback) (GError *error, gpointer user_data);
+
 /*****************************************************************************/
 
 struct _NMPlatformPrivate;
@@ -768,6 +770,15 @@ typedef struct {
 	GObjectClass parent;
 
 	gboolean (*sysctl_set) (NMPlatform *self, const char *pathid, int dirfd, const char *path, const char *value);
+	void (*sysctl_set_async)  (NMPlatform *platform,
+	                           const char *pathid,
+	                           int dirfd,
+	                           const char *path,
+	                           const char *const *values,
+	                           NMPlatformAsyncCallback callback,
+	                           gpointer data,
+	                           GCancellable *cancellable);
+
 	char * (*sysctl_get) (NMPlatform *self, const char *pathid, int dirfd, const char *path);
 
 	void (*refresh_all) (NMPlatform *self, NMPObjectType obj_type);
@@ -1105,6 +1116,14 @@ const char *nm_link_type_to_string (NMLinkType link_type);
 
 int nm_platform_sysctl_open_netdir (NMPlatform *self, int ifindex, char *out_ifname);
 gboolean nm_platform_sysctl_set (NMPlatform *self, const char *pathid, int dirfd, const char *path, const char *value);
+void nm_platform_sysctl_set_async (NMPlatform *platform,
+                                   const char *pathid,
+                                   int dirfd,
+                                   const char *path,
+                                   const char *const *values,
+                                   NMPlatformAsyncCallback callback,
+                                   gpointer data,
+                                   GCancellable *cancellable);
 char *nm_platform_sysctl_get (NMPlatform *self, const char *pathid, int dirfd, const char *path);
 gint32 nm_platform_sysctl_get_int32 (NMPlatform *self, const char *pathid, int dirfd, const char *path, gint32 fallback);
 gint64 nm_platform_sysctl_get_int_checked (NMPlatform *self, const char *pathid, int dirfd, const char *path, guint base, gint64 min, gint64 max, gint64 fallback);

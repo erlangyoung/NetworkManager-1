@@ -4042,7 +4042,13 @@ _log_dbg_sysctl_set_impl (NMPlatform *platform, const char *pathid, int dirfd, c
 	} G_STMT_END
 
 static gboolean
-sysctl_set (NMPlatform *platform, const char *pathid, int dirfd, const char *path, const char *value)
+sysctl_set_internal (NMPlatform *platform,
+                     const char *pathid,
+                     int dirfd,
+                     const char *path,
+                     const char *value,
+                     GError **error,
+                     gboolean verbose)
 {
 	nm_auto_pop_netns NMPNetns *netns = NULL;
 	int fd, tries;
@@ -4052,29 +4058,21 @@ sysctl_set (NMPlatform *platform, const char *pathid, int dirfd, const char *pat
 	gs_free char *actual_free = NULL;
 	int errsv;
 
-	g_return_val_if_fail (path != NULL, FALSE);
-	g_return_val_if_fail (value != NULL, FALSE);
+	g_return_val_if_fail (path, FALSE);
+	g_return_val_if_fail (value, FALSE);
 
 	ASSERT_SYSCTL_ARGS (pathid, dirfd, path);
 
 	if (dirfd < 0) {
-		if (!nm_platform_netns_push (platform, &netns)) {
-			errno = ENETDOWN;
-			return FALSE;
-		}
-
 		pathid = path;
 
 		fd = open (path, O_WRONLY | O_TRUNC | O_CLOEXEC);
 		if (fd == -1) {
 			errsv = errno;
-			if (errsv == ENOENT) {
-				_LOGD ("sysctl: failed to open '%s': (%d) %s",
-				       pathid, errsv, strerror (errsv));
-			} else {
-				_LOGE ("sysctl: failed to open '%s': (%d) %s",
-				       pathid, errsv, strerror (errsv));
-			}
+			g_set_error (error,
+			             1, 0,
+			             "sysctl: failed to open '%s': (%d) %s",
+			             pathid, errsv, strerror (errsv));
 			errno = errsv;
 			return FALSE;
 		}
@@ -4082,19 +4080,17 @@ sysctl_set (NMPlatform *platform, const char *pathid, int dirfd, const char *pat
 		fd = openat (dirfd, path, O_WRONLY | O_TRUNC | O_CLOEXEC);
 		if (fd == -1) {
 			errsv = errno;
-			if (errsv == ENOENT) {
-				_LOGD ("sysctl: failed to openat '%s': (%d) %s",
-				       pathid, errsv, strerror (errsv));
-			} else {
-				_LOGE ("sysctl: failed to openat '%s': (%d) %s",
-				       pathid, errsv, strerror (errsv));
-			}
+			g_set_error (error,
+			             1, 0,
+			             "sysctl: failed to openat '%s': (%d) %s",
+			             pathid, errsv, strerror (errsv));
 			errno = errsv;
 			return FALSE;
 		}
 	}
 
-	_log_dbg_sysctl_set (platform, pathid, dirfd, path, value);
+	if (verbose)
+		_log_dbg_sysctl_set (platform, pathid, dirfd, path, value);
 
 	/* Most sysfs and sysctl options don't care about a trailing LF, while some
 	 * (like infiniband) do.  So always add the LF.  Also, neither sysfs nor
@@ -4118,29 +4114,19 @@ sysctl_set (NMPlatform *platform, const char *pathid, int dirfd, const char *pat
 		if (nwrote == -1) {
 			errsv = errno;
 			if (errsv == EINTR) {
-				_LOGD ("sysctl: interrupted, will try again");
+				if (verbose)
+					_LOGD ("sysctl: interrupted, will try again");
 				continue;
 			}
 			break;
 		}
 	}
 	if (nwrote == -1) {
-		NMLogLevel level = LOGL_ERR;
-
-		if (errsv == EEXIST) {
-			level = LOGL_DEBUG;
-		} else if (   errsv == EINVAL
-		           && nm_utils_sysctl_ip_conf_is_path (AF_INET6, path, NULL, "mtu")) {
-			/* setting the MTU can fail under regular conditions. Suppress
-			 * logging a warning. */
-			level = LOGL_DEBUG;
-		}
-
-		_NMLOG (level, "sysctl: failed to set '%s' to '%s': (%d) %s",
-		        path, value, errsv, strerror (errsv));
+		g_set_error (error, 1, 0, "sysctl: failed to set '%s' to '%s': (%d) %s",
+		             path, value, errsv, strerror (errsv));
 	} else if (nwrote < len - 1) {
-		_LOGE ("sysctl: failed to set '%s' to '%s' after three attempts",
-		       path, value);
+		g_set_error (error, 1, 0, "sysctl: failed to set '%s' to '%s' after three attempts",
+		             path, value);
 	}
 
 	if (nwrote < len - 1) {
@@ -4154,12 +4140,189 @@ sysctl_set (NMPlatform *platform, const char *pathid, int dirfd, const char *pat
 		return FALSE;
 	}
 	if (nm_close (fd) != 0) {
+		g_set_error (error, 1, 0, "sysctl: failed to close file '%s", path);
 		/* errno is already properly set. */
 		return FALSE;
 	}
 
 	/* success. errno is undefined (no need to set). */
 	return TRUE;
+}
+
+static gboolean
+sysctl_set (NMPlatform *platform,
+            const char *pathid,
+            int dirfd,
+            const char *path,
+            const char *value)
+{
+	nm_auto_pop_netns NMPNetns *netns = NULL;
+	gs_free_error GError *error = NULL;
+	NMLogLevel level = LOGL_ERR;
+	int errsv;
+
+	g_return_val_if_fail (path, FALSE);
+	g_return_val_if_fail (value, FALSE);
+
+	if (   dirfd < 0
+	    && !nm_platform_netns_push (platform, &netns)) {
+		errno = ENETDOWN;
+		return FALSE;
+	}
+
+	if (!sysctl_set_internal (platform, pathid, dirfd, path, value, &error, TRUE)) {
+		errsv = errno;
+		if (errsv == EEXIST || errsv == ENOENT) {
+			level = LOGL_DEBUG;
+		} else if (   errsv == EINVAL
+		           && nm_utils_sysctl_ip_conf_is_path (AF_INET6, path, NULL, "mtu")) {
+			/* setting the MTU can fail under regular conditions. Suppress
+			 * logging a warning. */
+			level = LOGL_DEBUG;
+		}
+		_NMLOG (level, "%s", error->message);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+typedef struct {
+	NMPlatform *platform;
+	char *pathid;
+	int dirfd;
+	char *path;
+	NMPlatformAsyncCallback callback;
+	gpointer callback_data;
+	char **values;
+	GCancellable *cancellable;
+} SysctlAsyncInfo;
+
+static void
+sysctl_async_info_free (SysctlAsyncInfo *info)
+{
+	g_free (info->path);
+	g_strfreev (info->values);
+	g_free (info->pathid);
+	g_object_unref (info->platform);
+	g_slice_free (SysctlAsyncInfo, info);
+}
+
+static void
+sysctl_async_cb (GObject *object,
+                 GAsyncResult *res,
+                 gpointer user_data)
+{
+	NMPlatform *platform;
+	gs_free_error GError *error = NULL;
+	GTask *task = G_TASK (res);
+	SysctlAsyncInfo *info;
+	gs_free char *values = NULL;
+
+	info = g_task_get_task_data (task);
+	platform = info->platform;
+
+	if (!g_task_propagate_boolean (task, &error)) {
+		info->callback (error, info->callback_data);
+	} else {
+		values = g_strjoinv (", ", info->values);
+		_LOGD ("sysctl: asynchronously set '%s' to values '%s'",
+		       info->pathid ?: info->path, values);
+		info->callback (NULL, info->callback_data);
+	}
+}
+
+static void
+sysctl_async_thread_fn (GTask *task,
+                        gpointer source_object,
+                        gpointer task_data,
+                        GCancellable *cancellable)
+{
+	SysctlAsyncInfo *info = task_data;
+	GError *error = NULL;
+	char **value;
+
+	for (value = info->values; *value; value++) {
+		if (!sysctl_set_internal (info->platform,
+		                          info->pathid,
+		                          info->dirfd,
+		                          info->path,
+		                          *value,
+		                          &error,
+		                          FALSE)) {
+			g_task_return_error (task, error);
+			return;
+		}
+	}
+	g_task_return_boolean (task, TRUE);
+}
+
+static void
+sysctl_set_async_return_idle (gpointer user_data,
+                              GCancellable *cancellable)
+{
+	gs_unref_object NMPlatform *platform = NULL;
+	gs_free_error GError *error = NULL;
+	NMPlatformAsyncCallback callback;
+	gpointer callback_data;
+
+	nm_utils_user_data_unpack (user_data, &platform, &callback, &callback_data, &error);
+	if (!error)
+		g_cancellable_set_error_if_cancelled (cancellable, &error);
+	callback (error, callback_data);
+	g_object_unref (cancellable);
+}
+
+static void
+sysctl_set_async (NMPlatform *platform,
+                  const char *pathid,
+                  int dirfd,
+                  const char *path,
+                  const char *const *values,
+                  NMPlatformAsyncCallback callback,
+                  gpointer data,
+                  GCancellable *cancellable)
+{
+	nm_auto_pop_netns NMPNetns *netns = NULL;
+	SysctlAsyncInfo *info;
+	GTask *task;
+
+	g_return_if_fail (platform);
+	g_return_if_fail (path);
+	g_return_if_fail (values && values[0]);
+	g_return_if_fail (cancellable);
+	g_return_if_fail (!data || callback);
+
+	if (   dirfd < 0
+	    && !nm_platform_netns_push (platform, &netns)) {
+		GError *error = NULL;
+		gpointer packed;
+
+		g_set_error_literal (&error, 1, 0, "sysctl: failure to change namespace");
+		packed = nm_utils_user_data_pack (g_object_ref (platform),
+		                                  callback,
+		                                  data,
+		                                  error);
+		nm_utils_invoke_on_idle (sysctl_set_async_return_idle,
+		                         packed,
+		                         g_object_ref (cancellable));
+		return;
+	}
+
+	info = g_slice_alloc0 (sizeof (SysctlAsyncInfo));
+	info->platform = g_object_ref (platform);
+	info->pathid = g_strdup (pathid);
+	info->dirfd = dirfd;
+	info->path = g_strdup (path);
+	info->values = g_strdupv ((char **) values);
+	info->callback = callback;
+	info->callback_data = data;
+	info->cancellable = g_object_ref (cancellable);
+
+	task = g_task_new (platform, cancellable, sysctl_async_cb, NULL);
+	g_task_set_task_data (task, info, (GDestroyNotify) sysctl_async_info_free);
+	g_task_run_in_thread (task, sysctl_async_thread_fn);
+	g_object_unref (task);
 }
 
 static GSList *sysctl_clear_cache_list;
@@ -8344,6 +8507,7 @@ nm_linux_platform_class_init (NMLinuxPlatformClass *klass)
 	object_class->finalize = finalize;
 
 	platform_class->sysctl_set = sysctl_set;
+	platform_class->sysctl_set_async = sysctl_set_async;
 	platform_class->sysctl_get = sysctl_get;
 
 	platform_class->link_add = link_add;
