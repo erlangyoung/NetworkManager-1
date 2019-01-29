@@ -361,6 +361,7 @@ print_ip_config (NMIPConfig *cfg,
 	                  ? NMC_META_GENERIC_GROUP ("IP4", metagen_ip4_config, N_("GROUP"))
 	                  : NMC_META_GENERIC_GROUP ("IP6", metagen_ip6_config, N_("GROUP")),
 	                field_str,
+	                NULL,
 	                &error)) {
 		return FALSE;
 	}
@@ -393,6 +394,7 @@ print_dhcp_config (NMDhcpConfig *dhcp,
 	                  ? NMC_META_GENERIC_GROUP ("DHCP4", metagen_dhcp_config, N_("GROUP"))
 	                  : NMC_META_GENERIC_GROUP ("DHCP6", metagen_dhcp_config, N_("GROUP")),
 	                field_str,
+	                NULL,
 	                &error)) {
 		return FALSE;
 	}

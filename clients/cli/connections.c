@@ -1454,6 +1454,7 @@ nmc_active_connection_details (NMActiveConnection *acon, NmCli *nmc)
 			           NULL,
 			           NMC_META_GENERIC_GROUP ("GENERAL", metagen_con_active_general, N_("GROUP")),
 			           f,
+			           NULL,
 			           NULL);
 			was_output = TRUE;
 			continue;
@@ -1503,6 +1504,7 @@ nmc_active_connection_details (NMActiveConnection *acon, NmCli *nmc)
 				           NULL,
 				           NMC_META_GENERIC_GROUP ("VPN", metagen_con_active_vpn, N_("NAME")),
 				           group_fld,
+				           NULL,
 				           NULL);
 				was_output = TRUE;
 			}
@@ -2059,6 +2061,7 @@ do_connections_show (NmCli *nmc, int argc, char **argv)
 		                  : _("NetworkManager connection profiles"),
 		                (const NMMetaAbstractInfo *const*) metagen_con_show,
 		                fields_str,
+		                NULL,
 		                &err))
 			goto finish;
 	} else {

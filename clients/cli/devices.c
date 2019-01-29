@@ -1452,6 +1452,7 @@ show_device_info (NMDevice *device, NmCli *nmc)
 			           NULL,
 			           NMC_META_GENERIC_GROUP ("GENERAL", metagen_device_detail_general, N_("NAME")),
 			           f,
+			           NULL,
 			           NULL);
 			was_output = TRUE;
 			continue;
@@ -1466,6 +1467,7 @@ show_device_info (NMDevice *device, NmCli *nmc)
 			           NULL,
 			           NMC_META_GENERIC_GROUP ("CAPABILITIES", metagen_device_detail_capabilities, N_("NAME")),
 			           f,
+			           NULL,
 			           NULL);
 			was_output = TRUE;
 			continue;
@@ -1481,6 +1483,7 @@ show_device_info (NMDevice *device, NmCli *nmc)
 				           NULL,
 				           NMC_META_GENERIC_GROUP ("WIFI-PROPERTIES", metagen_device_detail_wifi_properties, N_("NAME")),
 				           f,
+				           NULL,
 				           NULL);
 				was_output = TRUE;
 			}
@@ -1539,6 +1542,7 @@ show_device_info (NMDevice *device, NmCli *nmc)
 				           NULL,
 				           NMC_META_GENERIC_GROUP ("WIRED-PROPERTIES", metagen_device_detail_wired_properties, N_("NAME")),
 				           f,
+				           NULL,
 				           NULL);
 				was_output = TRUE;
 			}
@@ -1641,6 +1645,7 @@ show_device_info (NMDevice *device, NmCli *nmc)
 			           NULL,
 			           NMC_META_GENERIC_GROUP ("CONNECTIONS", metagen_device_detail_connections, N_("NAME")),
 			           f,
+			           NULL,
 			           NULL);
 			was_output = TRUE;
 			continue;
@@ -1701,6 +1706,7 @@ do_devices_status (NmCli *nmc, int argc, char **argv)
 	                N_("Status of devices"),
 	                (const NMMetaAbstractInfo *const*) metagen_device_status,
 	                fields_str,
+	                NULL,
 	                &error)) {
 		g_string_printf (nmc->return_text, _("Error: 'device status': %s"), error->message);
 		g_error_free (error);

@@ -1002,7 +1002,8 @@ _print_fill (const NmcConfig *nmc_config,
              const PrintDataCol *cols,
              guint cols_len,
              GArray **out_header_row,
-             GArray **out_cells)
+             GArray **out_cells,
+             const char *prefix)
 {
 	GArray *cells;
 	GArray *header_row;
@@ -1045,8 +1046,14 @@ _print_fill (const NmcConfig *nmc_config,
 		    && NM_IN_SET (info->meta_type,
 		                  &nm_meta_type_property_info,
 		                  &nmc_meta_type_generic_info)) {
-			header_cell->title = g_strdup_printf ("%s.%s",
+			header_cell->title = g_strdup_printf ("%s%s.%s",
+			                                      prefix ?: "",
 			                                      nm_meta_abstract_info_get_name (col->parent_col->selection_item->info, FALSE),
+			                                      header_cell->title);
+			header_cell->title_to_free = TRUE;
+		} else if (prefix) {
+			header_cell->title = g_strdup_printf ("%s%s",
+			                                      prefix,
 			                                      header_cell->title);
 			header_cell->title_to_free = TRUE;
 		}
@@ -1391,6 +1398,7 @@ nmc_print (const NmcConfig *nmc_config,
            const char *header_name_no_l10n,
            const NMMetaAbstractInfo *const*fields,
            const char *fields_str,
+           const char *prefix,
            GError **error)
 {
 	gs_unref_ptrarray GPtrArray *gfree_keeper = NULL;
@@ -1409,7 +1417,8 @@ nmc_print (const NmcConfig *nmc_config,
 	             &g_array_index (cols, PrintDataCol, 0),
 	             cols->len,
 	             &header_row,
-	             &cells);
+	             &cells,
+	             prefix);
 
 	_print_do (nmc_config,
 	           header_name_no_l10n,

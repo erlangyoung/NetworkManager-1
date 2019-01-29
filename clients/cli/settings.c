@@ -812,6 +812,7 @@ setting_details (const NmcConfig *nmc_config, NMSetting *setting, const char *on
 	                NULL,
 	                (const NMMetaAbstractInfo *const[]) { (const NMMetaAbstractInfo *) setting_info, NULL },
 	                fields_str,
+	                NULL,
 	                &error))
 		return FALSE;
 
