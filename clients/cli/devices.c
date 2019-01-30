@@ -412,26 +412,25 @@ _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 		nm_assert (attr && strlen (attr) > 0);
 
 		type = nm_lldp_neighbor_get_attr_type (neighbor, attr);
-		if (!type)
-			return NULL;
-		else if (g_variant_type_equal (type, G_VARIANT_TYPE_STRING)) {
-			nm_lldp_neighbor_get_attr_string_value (neighbor, attr, &cstr);
-			*out_is_default = FALSE;
-			*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
-			return cstr;
-		} else if (g_variant_type_equal (type, G_VARIANT_TYPE_UINT32)) {
-			if (nm_lldp_neighbor_get_attr_uint_value (neighbor, attr, &u)) {
-				str = g_strdup_printf ("%u", u);
-				*out_to_free = str;
+		if (type) {
+			if (g_variant_type_equal (type, G_VARIANT_TYPE_STRING)) {
+				nm_lldp_neighbor_get_attr_string_value (neighbor, attr, &cstr);
 				*out_is_default = FALSE;
 				*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+				return cstr;
 			}
-			return str;
+			if (g_variant_type_equal (type, G_VARIANT_TYPE_UINT32)) {
+				if (nm_lldp_neighbor_get_attr_uint_value (neighbor, attr, &u)) {
+					str = g_strdup_printf ("%u", u);
+					*out_to_free = str;
+					*out_is_default = FALSE;
+					*out_flags &= ~NM_META_ACCESSOR_GET_OUT_FLAGS_HIDE;
+				}
+				return str;
+			}
 		}
-		break;
+		g_return_val_if_reached (NULL);
 	}
-
-	g_return_val_if_reached (NULL);
 }
 
 const NmcMetaGenericInfo *const metagen_device_lldp[_NMC_GENERIC_INFO_TYPE_DEVICE_LLDP_NUM + 1] = {
