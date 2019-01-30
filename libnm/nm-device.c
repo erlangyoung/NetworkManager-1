@@ -2817,7 +2817,7 @@ nm_lldp_neighbor_get_attr_uint_value (NMLldpNeighbor *neighbor, const char *name
  *
  * Gets the value (as a GVariant) of attribute with name @name on @neighbor
  *
- * Returns: the value or %NULL if the attribute with @name was
+ * Returns: (transfer none): the value or %NULL if the attribute with @name was
  * not found.
  *
  * Since: 1.16
