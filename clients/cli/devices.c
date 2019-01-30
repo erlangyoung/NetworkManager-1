@@ -406,8 +406,11 @@ _metagen_device_lldp_get_fcn (NMC_META_GENERIC_INFO_GET_FCN_ARGS)
 		}
 		return str;
 	default:
+		nm_assert (   _NM_INT_NOT_NEGATIVE  (info->info_type)
+		           && ((gsize) info->info_type) < G_N_ELEMENTS (lldp_attr_mapping));
 		attr = lldp_attr_mapping[info->info_type];
-		g_return_val_if_fail (attr, NULL);
+		nm_assert (attr && strlen (attr) > 0);
+
 		type = nm_lldp_neighbor_get_attr_type (neighbor, attr);
 		if (!type)
 			return NULL;
