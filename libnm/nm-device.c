@@ -2673,11 +2673,12 @@ nm_lldp_neighbor_new (void)
 {
 	NMLldpNeighbor *neigh;
 
-	neigh = g_new0 (NMLldpNeighbor, 1);
-	neigh->refcount = 1;
-	neigh->attrs = g_hash_table_new_full (nm_str_hash, g_str_equal, g_free,
-	                                      (GDestroyNotify) g_variant_unref);
-
+	neigh = g_new (NMLldpNeighbor, 1);
+	*neigh = (NMLldpNeighbor) {
+		.refcount = 1,
+		.attrs    = g_hash_table_new_full (nm_str_hash, g_str_equal, g_free,
+		                                   (GDestroyNotify) g_variant_unref),
+	};
 	return neigh;
 }
 
