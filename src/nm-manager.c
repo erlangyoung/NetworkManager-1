@@ -1923,12 +1923,10 @@ system_create_virtual_device (NMManager *self, NMConnection *connection)
 	NMManagerPrivate *priv = NM_MANAGER_GET_PRIVATE (self);
 	NMDeviceFactory *factory;
 	gs_free NMSettingsConnection **connections = NULL;
-	guint i;
 	gs_free char *iface = NULL;
 	NMDevice *device = NULL, *parent = NULL;
 	NMDevice *dev_candidate;
 	GError *error = NULL;
-	NMLogLevel log_level;
 
 	g_return_val_if_fail (NM_IS_MANAGER (self), NULL);
 	g_return_val_if_fail (NM_IS_CONNECTION (connection), NULL);
@@ -1989,41 +1987,6 @@ system_create_virtual_device (NMManager *self, NMConnection *connection)
 		 * safe to unref here and still return @device.
 		 */
 		g_object_unref (device);
-	}
-
-	/* Create backing resources if the device has any autoconnect connections */
-	connections = nm_settings_get_connections_clone (priv->settings, NULL,
-	                                                 NULL, NULL,
-	                                                 nm_settings_connection_cmp_autoconnect_priority_p_with_data, NULL);
-	for (i = 0; connections[i]; i++) {
-		NMConnection *candidate = nm_settings_connection_get_connection (connections[i]);
-		NMSettingConnection *s_con;
-
-		if (!nm_device_check_connection_compatible (device, candidate, NULL))
-			continue;
-
-		s_con = nm_connection_get_setting_connection (candidate);
-		g_assert (s_con);
-		if (!nm_setting_connection_get_autoconnect (s_con))
-			continue;
-
-		/* Create any backing resources the device needs */
-		if (!nm_device_create_and_realize (device, connection, parent, &error)) {
-			log_level = g_error_matches (error,
-			                             NM_DEVICE_ERROR,
-			                             NM_DEVICE_ERROR_MISSING_DEPENDENCIES)
-			            ? LOGL_DEBUG
-			            : LOGL_ERR;
-			_NMLOG3 (log_level, LOGD_DEVICE, connection,
-			         "couldn't create the device: %s",
-			         error->message);
-			g_error_free (error);
-			remove_device (self, device, FALSE, TRUE);
-			return NULL;
-		}
-
-		retry_connections_for_parent_device (self, device);
-		break;
 	}
 
 	return device;
