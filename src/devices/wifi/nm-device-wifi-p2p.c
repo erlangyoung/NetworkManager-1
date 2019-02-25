@@ -710,6 +710,9 @@ supplicant_iface_state_cb (NMSupplicantInterface *iface,
 		                                   NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED);
 
 		supplicant_interfaces_release (self, TRUE);
+		nm_device_state_changed (NM_DEVICE (self),
+		                         NM_DEVICE_STATE_UNAVAILABLE,
+		                         NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED);
 		break;
 	default:
 		break;
@@ -941,10 +944,6 @@ supplicant_interfaces_release (NMDeviceWifiP2P *self, gboolean set_is_waiting)
 
 	supplicant_group_interface_release (self);
 
-	nm_device_state_changed (NM_DEVICE (self),
-	                         NM_DEVICE_STATE_UNAVAILABLE,
-	                         NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED);
-
 	if (set_is_waiting)
 		_set_is_waiting_for_supplicant (self, TRUE);
 }
@@ -1115,8 +1114,12 @@ nm_device_wifi_p2p_set_mgmt_iface (NMDeviceWifiP2P *self,
 
 	supplicant_interfaces_release (self, FALSE);
 
-	if (!iface)
+	if (!iface) {
+		nm_device_state_changed (NM_DEVICE (self),
+		                         NM_DEVICE_STATE_UNAVAILABLE,
+		                         NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED);
 		goto done;
+	}
 
 	_LOGD (LOGD_DEVICE | LOGD_WIFI, "P2P: WPA supplicant management interface changed to %s.", nm_supplicant_interface_get_object_path (iface));
 
