@@ -2487,7 +2487,8 @@ get_existing_connection (NMManager *self,
 	if (ifindex) {
 		int master_ifindex = nm_platform_link_get_master (priv->platform, ifindex);
 
-		if (master_ifindex) {
+		if (   master_ifindex
+		    && !nm_streq0 (nm_platform_link_get_name(priv->platform, master_ifindex), "ovs-system")) {
 			master = nm_manager_get_device_by_ifindex (self, master_ifindex);
 			if (!master) {
 				_LOG2D (LOGD_DEVICE, device, "assume: don't assume because "
