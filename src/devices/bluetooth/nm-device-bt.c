@@ -397,9 +397,9 @@ ppp_failed (NMModem *modem,
 	case NM_DEVICE_STATE_SECONDARIES:
 	case NM_DEVICE_STATE_ACTIVATED:
 		if (nm_device_activate_ip4_state_in_conf (device))
-			nm_device_activate_schedule_ip4_config_timeout (device);
+			nm_device_activate_schedule_ip_config_timeout (device, AF_INET);
 		else if (nm_device_activate_ip6_state_in_conf (device))
-			nm_device_activate_schedule_ip6_config_timeout (device);
+			nm_device_activate_schedule_ip_config_timeout (device, AF_INET6);
 		else if (nm_device_activate_ip4_state_done (device)) {
 			nm_device_ip_method_failed (device,
 			                            AF_INET,
@@ -541,7 +541,7 @@ modem_ip4_config_result (NMModem *modem,
 		                            AF_INET,
 		                            NM_DEVICE_STATE_REASON_IP_CONFIG_UNAVAILABLE);
 	} else
-		nm_device_activate_schedule_ip4_config_result (device, config);
+		nm_device_activate_schedule_ip_config_result (device, AF_INET, config);
 }
 
 static void
