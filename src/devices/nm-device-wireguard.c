@@ -47,7 +47,22 @@ _LOG_DECLARE_SELF(NMDeviceWireGuard);
 /* TODO: unlike for other VPNs, we don't inject a direct route to the peers. That means,
  *   you might get a routing sceneraio where the peer (VPN server) is reachable via the VPN.
  *   How we handle adding routes to external gateway for other peers, has severe issues
-*    as well. I think the only solution is https://www.wireguard.com/netns/#improving-the-classic-solutions */
+ *   as well. We may use policy-routing like wg-quick does. See also disussions at
+ *   https://www.wireguard.com/netns/#improving-the-classic-solutions */
+
+/* TODO: add allowed-ips ranges as regular routes */
+
+/* TODO: honor the TTL of DNS to determine when to retry resolving endpoints. */
+
+/* TODO: we use nm_utils_memeqzero_secret() for handling the secrets. Do we also need
+ *   timing resistent base64 implementations? See https://א.cc/JIxwujS3 . */
+
+/* TODO: when we get multiple IP addresses when resolving a peer endpoint. We currently
+ *   just take the first from GAI. We should only accept AAAA/IPv6 if we also have a suitable
+ *   IPv6 address. The problem is, that we have to recheck that when IP addressing on other
+ *   interfaces changes. This makes it almost too cumbersome to implement. */
+
+/* TODO: implement setting the MTU. Both automatically, and allowing to configure it. */
 
 /*****************************************************************************/
 
