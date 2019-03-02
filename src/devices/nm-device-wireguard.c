@@ -1266,6 +1266,29 @@ _get_dev2_ip_config (NMDeviceWireGuard *self,
 
 	s_wg = NM_SETTING_WIREGUARD (nm_connection_get_setting (connection, NM_TYPE_SETTING_WIREGUARD));
 
+	/* Differences to `wg-quick`.
+	 *
+	 * `wg-quick` supports the "Table" setting with 3 modes:
+	 *
+	 * a1) "off": this is what we do with "peer-routes" disabled.
+	 *
+	 * a2) an explicit routing table. This is our default behavior with "peer-routes" on. In this case
+	 *   we honor the "ipv4.route-table" and "ipv6.route-table" settings. One difference is that
+	 *   `wg-quick` would resolve table names from /etc/iproute2/rt_tables. Our connection profiles
+	 *   only contain table numbers, so that conversion from name to table must have happend
+	 *   before already.
+	 *
+	 * a3) "auto" (the default). In this case, `wg-quick` would only add the route to the
+	 *   main table, if the AllowedIP range is not yet reachable on the link. We don't check
+	 *   for that and always add the routes with "peer-routes" enabled.
+	 *   Also, in "auto" mode, `wg-quick` would add special handling for /0 routes and pick
+	 *   an empty table to configure policy routing to avoid routing loops. This handling
+	 *   of routing-loops via policy routing is a separate topic from the "peer-routes"
+	 *   that we handle here.
+	 */
+	if (!nm_setting_wireguard_get_peer_routes (s_wg))
+		return NULL;
+
 	ip_ifindex = nm_device_get_ip_ifindex (NM_DEVICE (self));
 
 	if (ip_ifindex <= 0)
