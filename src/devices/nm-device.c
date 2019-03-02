@@ -11067,7 +11067,6 @@ can_reapply_change (NMDevice *self, const char *setting_name,
 static void
 reapply_connection (NMDevice *self, NMConnection *con_old, NMConnection *con_new)
 {
-
 }
 
 /* check_and_reapply_connection:
