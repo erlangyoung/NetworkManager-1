@@ -1380,6 +1380,29 @@ act_stage3_ip_config_start (NMDevice *device,
 	return NM_DEVICE_CLASS (nm_device_wireguard_parent_class)->act_stage3_ip_config_start (device, addr_family, out_config, out_failure_reason);
 }
 
+static guint32
+get_configured_mtu (NMDevice *device, NMDeviceMtuSource *out_source)
+{
+	/* When "MTU" for `wg-quick` is unset, it calls `ip route get` for
+	 * each configured endpoint, to determine the minimal MTU. We don't
+	 * do that.
+	 *
+	 * First of all, it's cumbersome. But also, we don't want that the MTU
+	 * setting depends on routes that are configured on another device. For
+	 * `wg-quick` this works well, because the script just runs once and determines
+	 * the best MTU at that point in time.
+	 * But for NetworkManager being smart about choosing the right MTU would mean
+	 * to re-evaluate the decisions as interfaces go up and down. Not only that,
+	 * also when any route changes, or any MTU setting. That would mean, we
+	 * would have to re-evaluate frequently.
+	 *
+	 * If the default MTU is not suitable for a user, they should configure an explicit fixed
+	 * one. */
+	return nm_device_get_configured_mtu_from_connection (device,
+	                                                     NM_TYPE_SETTING_WIREGUARD,
+	                                                     out_source);
+}
+
 static void
 device_state_changed (NMDevice *device,
                       NMDeviceState new_state,
@@ -1408,8 +1431,18 @@ can_reapply_change (NMDevice *device,
                     GError **error)
 {
 	if (nm_streq (setting_name, NM_SETTING_WIREGUARD_SETTING_NAME)) {
-		/* we allow reapplying all WireGuard settings. */
-		return TRUE;
+		/* Most, but not all WireGuard settings can be reapplied. Whitelist.
+		 *
+		 * MTU cannot be reapplied. */
+		return nm_device_hash_check_invalid_keys (diffs,
+		                                          NM_SETTING_WIREGUARD_SETTING_NAME,
+		                                          error,
+		                                          NM_SETTING_WIREGUARD_FWMARK,
+		                                          NM_SETTING_WIREGUARD_LISTEN_PORT,
+		                                          NM_SETTING_WIREGUARD_PEERS,
+		                                          NM_SETTING_WIREGUARD_PEER_ROUTES,
+		                                          NM_SETTING_WIREGUARD_PRIVATE_KEY,
+		                                          NM_SETTING_WIREGUARD_PRIVATE_KEY_FLAGS);
 	}
 
 	return NM_DEVICE_CLASS (nm_device_wireguard_parent_class)->can_reapply_change (device,
@@ -1595,6 +1628,7 @@ nm_device_wireguard_class_init (NMDeviceWireGuardClass *klass)
 	device_class->update_connection = update_connection;
 	device_class->can_reapply_change = can_reapply_change;
 	device_class->reapply_connection = reapply_connection;
+	device_class->get_configured_mtu = get_configured_mtu;
 
 	obj_properties[PROP_PUBLIC_KEY] =
 	    g_param_spec_variant (NM_DEVICE_WIREGUARD_PUBLIC_KEY,

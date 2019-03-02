@@ -7539,6 +7539,9 @@ static const NMMetaPropertyInfo *const property_infos_WIREGUARD[] = {
 	PROPERTY_INFO_WITH_DESC (NM_SETTING_WIREGUARD_PEER_ROUTES,
 		.property_type =                &_pt_gobject_bool,
 	),
+	PROPERTY_INFO_WITH_DESC (NM_SETTING_WIREGUARD_MTU,
+		.property_type =                &_pt_gobject_mtu,
+	),
 	NULL
 };
 

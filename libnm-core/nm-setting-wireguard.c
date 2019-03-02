@@ -855,6 +855,7 @@ NM_GOBJECT_PROPERTIES_DEFINE_BASE (
 	PROP_LISTEN_PORT,
 	PROP_FWMARK,
 	PROP_PEER_ROUTES,
+	PROP_MTU,
 );
 
 typedef struct {
@@ -863,6 +864,7 @@ typedef struct {
 	GHashTable *peers_hash;
 	NMSettingSecretFlags private_key_flags;
 	guint32 fwmark;
+	guint32 mtu;
 	guint16 listen_port;
 	bool private_key_valid:1;
 	bool peer_routes:1;
@@ -994,6 +996,22 @@ nm_setting_wireguard_get_peer_routes (NMSettingWireGuard *self)
 	g_return_val_if_fail (NM_IS_SETTING_WIREGUARD (self), TRUE);
 
 	return NM_SETTING_WIREGUARD_GET_PRIVATE (self)->peer_routes;
+}
+
+/**
+ * nm_setting_wireguard_get_mtu:
+ * @self: the #NMSettingWireGuard instance
+ *
+ * Returns: the MTU of the setting.
+ *
+ * Since: 1.16
+ */
+guint32
+nm_setting_wireguard_get_mtu (NMSettingWireGuard *self)
+{
+	g_return_val_if_fail (NM_IS_SETTING_WIREGUARD (self), 0);
+
+	return NM_SETTING_WIREGUARD_GET_PRIVATE (self)->mtu;
 }
 
 /*****************************************************************************/
@@ -2193,6 +2211,9 @@ get_property (GObject *object, guint prop_id,
 	case PROP_PEER_ROUTES:
 		g_value_set_boolean (value, priv->peer_routes);
 		break;
+	case PROP_MTU:
+		g_value_set_uint (value, priv->mtu);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -2232,6 +2253,9 @@ set_property (GObject *object, guint prop_id,
 		break;
 	case PROP_PEER_ROUTES:
 		priv->peer_routes = g_value_get_boolean (value);
+		break;
+	case PROP_MTU:
+		priv->mtu = g_value_get_uint (value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2382,6 +2406,25 @@ nm_setting_wireguard_class_init (NMSettingWireGuardClass *klass)
 	                            G_PARAM_READWRITE
 	                          | NM_SETTING_PARAM_INFERRABLE
 	                          | G_PARAM_STATIC_STRINGS);
+
+	/**
+	 * NMSettingWireGuard:mtu:
+	 *
+	 * If non-zero, only transmit packets of the specified size or smaller,
+	 * breaking larger packets up into multiple fragments.
+	 *
+	 * If zero a default MTU is used. Note that contrary to wg-quick's MTU
+	 * setting, this does not take into account the current routes at the
+	 * time of activation.
+	 *
+	 * Since: 1.16
+	 **/
+	obj_properties[PROP_MTU] =
+	    g_param_spec_uint (NM_SETTING_WIREGUARD_MTU, "", "",
+	                       0, G_MAXUINT32, 0,
+	                         G_PARAM_READWRITE
+	                       | NM_SETTING_PARAM_INFERRABLE
+	                       | G_PARAM_STATIC_STRINGS);
 
 	/* ---dbus---
 	 * property: peers
